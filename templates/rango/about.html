@@ -7,15 +7,15 @@
 	<body>
 		<h1>Rango says... </h1>
 		here is the about page.
-		
+					
 		<div>
+			<a href="/rango/">Index</a><br />
 			hey there partner! <br />
 			<strong>{{ boldmessage }}</strong><br />
+			<img src="{% static 'images/rango.jpg' %}" alt="Photo of Rango"/>
 		</div>
 		<div>
-			<img src="{% static 'images/rango.jpg' %}"
-                 alt="Picture of Rango" /> <!-- New line -->
-			<img src="{% static 'media/cat.jpg' %}"
+			<img src="{{MEDIA_URL}}cat.jpg"
 				alt="Picture of a Cat" /> <!-- New line -->
 		</div>
 	</body>
