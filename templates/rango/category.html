@@ -16,12 +16,13 @@
 				{% endfor %}
 			</ul>
 			{% else %}
-			<strong>No pages currently in category.</strong>
+			<strong>No pages currently in category.</strong><br />
 			{% endif %}
+			<a href="/rango/category/{{category.slug}}/add_page/">Add Page</a><br />
 		{% else %}
 			<strong>The specified category does not exist. </strong>
 		{%endif%}
 		</div>
-		<a href="/rango/">Index</a>
+		<a href="/rango/">Index</a> <br/>
 	</body>
 </html>
