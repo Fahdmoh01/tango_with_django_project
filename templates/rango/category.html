@@ -1,12 +1,12 @@
 {% extends 'rango/base.html' %}
 {% load staticfiles %}
 
-{% block title_block%}
+{% block title_block %}
 	{% if category %}
 		{{ category.name }}
 	{% else %}
-		Unknow Category
-	{%endif%}
+		Unknown Category
+	{% endif %}
 {% endblock %}
 
 {% block body_block%}
@@ -24,5 +24,5 @@
 	<a href="{% url 'rango:add_page' category.slug %}">Add Page</a><br />
 {% else %}
 	<strong>The specified category does not exist. </strong>
-{%endif%}
-{%endblock%}
+{% endif %}
+{% endblock %}
