@@ -1,6 +1,9 @@
 from django import forms
-from rango.models import Page, Category
+from rango.models import Page, Category,UserProfile
 
+from django.contrib.auth.models import User
+
+#Meta: describes additional attributes about the class.
 class CategoryForm(forms.ModelForm):
 	name = forms.CharField(max_length=Category.NAME_MAX_LENGTH, help_text='Please enter the category name.')
 	views = forms.IntegerField(widget=forms.HiddenInput(),initial = 0)
@@ -42,3 +45,19 @@ class PageForm(forms.ModelForm):
 				cleaned_data['url'] = url
 
 			return cleaned_data
+		
+
+class UserForm(forms.ModelForm):
+	password = forms.CharField(widget=forms.PasswordInput())
+
+	class Meta:
+		model = User
+		#fields indicate which fields on the model should be present when form has been successfully rendered
+		fields = ('username', 'email', 'password',)
+
+
+class UserProfileForm(forms.ModelForm):
+	class Meta:
+		model = UserProfile
+		#fields indicate which fields on the model should be present when form has been successfully rendered
+		fields = ('website', 'picture',)

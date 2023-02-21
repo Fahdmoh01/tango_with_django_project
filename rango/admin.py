@@ -1,5 +1,5 @@
 from django.contrib import admin
-from rango.models import Category, Page
+from rango.models import Category, Page, UserProfile
 
 
 #helps to automatic slugify names
@@ -14,3 +14,5 @@ class PageAdmin(admin.ModelAdmin):
 admin.site.register(Category, CategoryAdmin)
 #This registers and displays tile, category and url in the admin panel
 admin.site.register(Page,PageAdmin)
+#Register model with admin interface
+admin.site.register(UserProfile)
