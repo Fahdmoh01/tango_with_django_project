@@ -17,14 +17,23 @@ from  django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path
-from django.urls import include
+from django.urls import include, reverse
 from rango import views
+from registration.backends.simple.views import RegistrationView
+
+class MyRegistrationView(RegistrationView):
+    def get_success_url(self, user):
+        return reverse('rango:register_profile')
 
 urlpatterns = [
 	path('',views.index, name='index'),
 	path('rango/',include('rango.urls')),
     #The above maps any URLs starting with rango/ to be handled by rango
 	path('admin/', admin.site.urls),
+    path('accounts/register/',
+         MyRegistrationView.as_view(),
+         name= 'registration_register'),
+         
     #configuration with registration redux
 	path('accounts/', include('registration.backends.simple.urls'))
 

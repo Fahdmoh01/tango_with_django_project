@@ -15,9 +15,51 @@
 	{% if pages %}
 	<ul>
 		{% for page in pages %}
-		<li><a href="{{ page.url }}">{{page.title}}</a></li>
+		<li>
+			<a href="{% url 'rango:goto' %}?page_id={{page.id}}">{{page.title}}</a>
+			{% if page.views > 1%}
+				<p>page view: {{page.views}} views</p>
+			{% elif page.views == 1 %}
+				<p>page view: {{page.views}} view</p>
+			{% else %}
+			<p>page view: {{page.views}} views</p>
+			{% endif %}
+		</li>
 		{% endfor %}
 	</ul>
+  {% if user.is_authenticated %}
+	<div class="jumbotron p-4">
+		<div class="container">
+			<h1 class="jumbotron-heading">Search with Rango</h1>
+		</div>
+	</div>
+	<div>
+		<form action="{% url 'rango:show_category' category.slug %}" class="form-inline" method="post" id="user-form">
+			{% csrf_token %}
+			<div class="form-group">
+				<input type="text" class="form-control" type="text" size="50" name="query" id="query" value="{{query}}"/>
+			</div>
+	
+			<button class="btn btn-primary" type="submit" name="submit">Search</button>
+		</form>
+	</div>
+	<div>
+		{% if result_list %}
+		<h2>Results</h2>
+		<div class="list-group">
+			{% for result in result_list %}
+			<div class="list-group-item">
+				<h3 class="list-group-item-heading">
+					<a href="{% url 'rango:goto' %}?page_id={{result.id}}">
+						{{ result.title|safe|escape }}
+					</a>
+				</h3>
+			</div>
+			{% endfor %}
+		</div>
+		{% endif %}
+	</div>
+	{% endif %}	
 	{% else %}
 		<strong>No pages currently in category.</strong><br />
 	{% endif %}

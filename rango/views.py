@@ -1,9 +1,15 @@
 from django.contrib.auth import authenticate, login, logout
-from django.shortcuts import render,redirect
+from django.shortcuts import render,redirect,get_object_or_404
 from django.http import HttpResponse
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from datetime import datetime
+from django.views import View
+from django.utils.decorators import method_decorator
+
+#import view
+from rango.bing_search import run_query
+
 #importing models
 from rango.models import Category
 from rango.models import Page
@@ -35,207 +41,120 @@ def index(request):
 	return response
 
 
-def about(request):
+
+class AboutView(View):
+	def get(self, request):
+		context_dict ={}
+		visitor_cookie_handler(request)
+		context_dict['visits'] = request.session['visits']
+
+		return render(request,'rango/about.html',context=context_dict)
+
+class ShowCategoryView(View):
 	context_dict ={}
-	visitor_cookie_handler(request)
-	visits = request.session['visits']
-	message={'boldmessage':'This tutorial has been put together by Fahd'}
+	query= None
+		
+	@method_decorator(login_required)
+	def post(self, request, category_name_slug):
+		self.query = request.POST.get('query')
+		if self.query:
+			pages = Page.objects.filter(category__slug=category_name_slug, title__icontains=self.query)
+			self.context_dict['result_list'] = pages
+			self.context_dict['query'] = self.query
+		
+		return render(request, 'rango/category.html', self.context_dict)
 
-	context_dict['visits'] = visits
-	context_dict['message'] = message
+	def get(self, request, category_name_slug):
+		try:
+			# can we find a category name slug wiht the given name? If we can't, the .get() method raises a DoesNotExist exception.
+			# The .get() method returns one model instance or raises an exception.
+			category = Category.objects.get(slug=category_name_slug)
+			# Retrieve all of the associated pages.
+			# The filter() will return a list of page objects or an empty list.	
+			pages = Page.objects.filter(category=category)
+			ordered_pages = pages.order_by('-views')
+			# Adds our results list to the template context under names pages.
+			self.context_dict['pages'] = ordered_pages
+			# We also add the category objects from the database to the context dictionary.We'll use this in the template to verify  category exists
+			self.context_dict['category'] = category
+		except Category.DoesNotExist:
+			# We get here if we didgn't find the specified category. Don't do anything
+			# the template will display the "no category" message for us.
+			self.context_dict['category'] = None
+			self.context_dict['pages'] = None
 
-	return render(request,'rango/about.html',context=context_dict)
+		#Go render the response and return it to the client.
+		return render(request, 'rango/category.html', self.context_dict)
 
-def show_category(request, category_name_slug):
-	#Create a context dictionary which we can pass to the template engine
-	context_dict ={}
 
-	try:
-		# can we find a category name slug wiht the given name? If we can't, the .get() method raises a DoesNotExist exception.
-		# The .get() method returns one model instance or raises an exception.
-		category = Category.objects.get(slug=category_name_slug)
+class AddCategoryView(View):
+	@method_decorator(login_required)
+	def get(self, request):
+		form = CategoryForm()
+		return render(request, 'rango/add_category.html',{'form':form})
 
-		# Retrieve all of the associated pages.
-		# The filter() will return a list of page objects or an empty list.
-		pages = Page.objects.filter(category= category)
-
-		# Adds our results list to the template context under names pages.
-		context_dict['pages'] = pages
-
-		# We also add the category objects from the database to the context dictionary.We'll use this in the template to verify  category exists
-		context_dict['category'] = category
-	except Category.DoesNotExist:
-		# We get here if we didgn't find the specified category. Don't do anything
-		# the template will display the "no category" message for us.
-		context_dict['category'] = None
-		context_dict['pages'] = None
-
-	#Go render the response and return it to the client.
-	return render(request, 'rango/category.html', context=context_dict)
-
-@login_required
-def add_category(request):
-	form = CategoryForm()
-
-	#A HTTP Post?
-	if request.method == 'POST':
+	@method_decorator(login_required)
+	def post(self, request):
 		form = CategoryForm(request.POST)
 
-		#Have we been provided with a valide form?
 		if form.is_valid():
-			#Save the new category tot he database.
-			form.save(commit = True)
-			#Now that the category is saved, we could confirm this.
-			#For now, just redirect the user back to the index.view
-			return redirect('/rango/')
+			form.save(commit=True)
+			return redirect(reverse('rango:index'))
 		else:
-			#The supplied form contained errors- just print them to terminal
+			print(form.errors)
+		
+		return render(request, 'rango/add_category.html', {'form':form})
+		
+
+
+class AddPageView(View):
+	@method_decorator(login_required)	
+	def get(self,request, category_name_slug):
+		try:
+			category = Category.objects.get(slug=category_name_slug)
+		except Category.DoesNotExist:
+			category = None
+   		# You cannot add a page to a Category that does not exist...
+		if category is None:
+			return redirect('/rango/')
+		
+		form = PageForm()
+		context_dict ={'form':form, 'category':category}
+		return render(request, 'rango/add_page.html', context=context_dict)
+
+	@method_decorator(login_required)
+	def post(self,request,category_name_slug):
+		try:
+			category = Category.objects.get(slug=category_name_slug)
+		except Category.DoesNotExist:
+			category = None
+   		# You cannot add a page to a Category that does not exist...
+		if category is None:
+			return redirect('/rango/')
+		
+		form = PageForm(request.POST)
+
+		if form.is_valid():
+			if category:
+				page = form.save(commit=False)
+				page.category = category
+				page.views = 0
+				page.save()
+				
+				return redirect(reverse('rango:show_category',
+										kwargs={'category_name_slug':
+												category_name_slug}))
+		else:
 			print(form.errors)
 
+
+		context_dict = {'form': form, 'category': category}
+		return render(request, 'rango/add_page.html', context=context_dict)	
 		
-	#Will handle the bad form, new, form or no form supplied cases
-	#Render the form with erro messages(if any):
-	return render(request, 'rango/add_category.html', {'form': form})
 
-
-#adding a page to a particular category.
-@login_required
-def add_page(request, category_name_slug):
-    try:
-        category = Category.objects.get(slug=category_name_slug)
-    except Category.DoesNotExist:
-        category = None
-    
-    # You cannot add a page to a Category that does not exist...
-    if category is None:
-        return redirect('/rango/')
-    
-    form = PageForm()
-    
-    if request.method == 'POST':
-        form = PageForm(request.POST)
-        
-        if form.is_valid():
-            if category:
-                page = form.save(commit=False)
-                page.category = category
-                page.views = 0
-                page.save()
-                
-                return redirect(reverse('rango:show_category',
-                                        kwargs={'category_name_slug':
-                                                category_name_slug}))
-        else:
-            print(form.errors)
-    
-    context_dict = {'form': form, 'category': category}
-    return render(request, 'rango/add_page.html', context=context_dict)
-
-
-# def register(request):
-# 	#A boolean value for telling the template whether the registration was successful.
-# 	#Set to False initially. Code changes value to True when registration succeeds.
-# 	registered = False
-
-# 	#If it's a HTTP POST, we're interested in processing form data.
-# 	if request.method == 'POST':
-# 		#Attempt to grab information from the raw form information.
-# 		#Note that we made use of both UserForm and UserProfileForm.
-# 		user_form = UserForm(request.POST)
-# 		profile_form = UserProfileForm(request.POST)
-
-# 		#If the two forms are valid...
-# 		if user_form.is_valid() and profile_form.is_valid():
-# 			#Save the user's form data to the database.
-# 			user = user_form.save()
-
-# 			#Now we hash the password with the set_password method.
-# 			#Once hashed, we can update the user object.
-# 			user.set_password(user.password)
-# 			user.save()
-
-# 			#now sort out the UserProfile Instance.
-# 			#Since we need to set the user attribute ourselves,
-# 			#we set the commit=False. This delays saving the model
-# 			#unitl we're ready to avoid integrity problems.
-# 			profile = profile_form.save(commit=False)
-# 			profile.user = user
-
-# 			#Did the user provide a profile picture?
-# 			#If so, we need to get it form the input form and
-# 			#put it in the UserProfile model.
-# 			if 'picture' in request.FILES:
-# 				profile.picture = request.FILES['picture']
-
-# 			#Now we save the UserProfile model instance.
-# 			profile.save()
-
-# 			# Update variable to indicate the template
-# 			# registration was successful.
-# 			registered = True
-# 		else:
-# 			#Invalid form or forms - mistakes or something else?
-# 			#Print problems to the terminal.
-# 			print(user_form.errors, profile_form.errors)
-# 	else: 
-# 		#Not a HTTP POST, so we render our from using two ModelFrom instances.
-# 		#These forms willl be blank, redy for user input.
-# 		user_form = UserForm()
-# 		profile_form = UserProfileForm()
-
-# 	#Render the template depending on the context.
-# 	return render(request,
-# 	       'rango/register.html', context={'user_form': user_form,
-# 					'profile_form': profile_form,
-# 					'registered': registered})
-
-
-
-# def user_login(request):
-# 	#if the request is an  HTTP POST, try to pull out the relevant infromation
-# 	if request.method == 'POST':
-# 		# Gather the username and password provided by the user.
-# 		# This information is obtained from the login from.
-# 		# We use request.POST.get('<variable>') as opposed  to request.POST['<variable>'], because the 
-# 		# request.POST.get['<variable>'], because the 
-# 		# request.POST.get('<variable>') returns None if the value does not exist, while request.POST['<variable>']
-# 		# will raise a KeyError exception.
-# 		username =  request.POST.get('username')
-# 		password = request.POST.get('password')
-
-# 		# Use Django's machinery to attempt to see if the username/password
-# 		# combination is valid - a User object is returned if it is.
-# 		user = authenticate(username = username, password = password)
-
-# 		# If we have User object, the details are correct.
-# 		# If None(Python's way of representing  the absence of a value), no user
-# 		# with matching credentials was found.
-# 		if user:
-# 			# Is the account active? It could have been disabled.
-# 			if user.is_active:
-# 				# If the account is valid and active, we can log the user in.
-# 				# We'll send the user back to the hompage.
-# 				login(request, user)
-# 				return redirect(reverse('rango:index'))
-# 			else:
-# 				# An inactive account was used - no loggin in!
-# 				return HttpResponse('Your Rango account is disabled.')
-			
-# 		else:
-# 			# Bad login details were provided. so we can't log the user in.
-# 			print(f'Invalid login details:{username}, {password}')
-# 			return HttpResponse('Invalid login details supplied.')
-		
-# 	# The request is not a HTTP POST, so display the login form.
-# 	# This scenario would most likely be a HTTP GET.
-# 	else:
-# 		# No context variables to pass to the template system, hence the blank dictionary object..
-# 		return render(request, 'rango/login.html')
-	
-
-@login_required
-def restricted(request):
-	return render(request, 'rango/restricted.html')
+# @login_required
+# def restricted(request):
+# 	return render(request, 'rango/restricted.html')
 
 
 #Use the login_required() decorator to ensure only those logged in can  access the view
@@ -279,3 +198,59 @@ def visitor_cookie_handler(request):
 
 #this helper function takes the request and response objects - because we want to be able to access the incoming cookies
 #from the request and add or update the cookies in the response.
+
+
+# def search(request):
+# 	#result_list = []
+# 	context_dict ={}
+# 	context_dict['result_list'] =[]
+# 	print("Checking what is in request",request)
+# 	if request.method == 'POST':
+# 		query = request.POST['query'].strip()
+# 		print("Query", query)
+# 		if query:
+# 			#Run our Bing function to get the results list!
+# 			# result_list  = run_query(query)
+# 			context_dict['result_list'] = run_query(query)
+# 			context_dict['query'] = query
+# 			print(query)
+
+# 	return render(request, 'rango/search.html',context_dict)
+
+
+
+
+class GotoURLView(View):
+	def get(self, request):
+		try:
+			page_id = request.GET.get('page_id')
+			page = get_object_or_404(Page, id=page_id)
+			page.views +=1
+			page.save()
+			return redirect(page.url)
+		except Page.DoesNotExist:
+			return redirect(reverse('rango:index'))
+
+
+class RegisterProfileView(View):
+	@method_decorator(login_required)
+	def get(self, request):
+		form = UserProfileForm()
+		context_dict = {'form':form}
+		return render(request, 'rango/profile_registration.html', context_dict)
+
+	@method_decorator(login_required)
+	def post(self, request):
+		form = UserProfileForm(request.POST, request.FILES)
+
+		if form.is_valid():
+			user_profile = form.save(commit=False)
+			user_profile.user = request.user
+			user_profile.save()
+
+			return redirect(reverse('rango:index'))
+		else:
+			print(form.errors)
+
+		context_dict = {'form': form}
+		return render(request, 'rango/profile_registration.html', context_dict)
